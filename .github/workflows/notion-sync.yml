@@ -1,0 +1,32 @@
+name: Firestore → Notion Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"   # runs once daily at 3 AM UTC
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install --omit=dev --no-audit --no-fund
+
+      - name: Run sync
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          FIREBASE_UID: ${{ secrets.FIREBASE_UID }}
+          NOTION_TITLE_PROP: "Content"
+        run: node scripts/sync-firestore-to-notion.mjs
