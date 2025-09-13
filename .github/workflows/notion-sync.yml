@@ -1,9 +1,9 @@
 name: Firestore → Notion Sync
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:        # allow manual runs
   schedule:
-    - cron: "0 3 * * *"   # runs once daily at 3 AM UTC
+    - cron: "15 21 * * *"   # once daily at 21:15 UTC (~02:45 IST next day). Adjust if you like.
 
 jobs:
   sync:
@@ -19,6 +19,15 @@ jobs:
           node-version: "20"
           cache: "npm"
 
+      # Keep this for reliability on public runners; harmless on public repos.
+      - name: Configure npm (stability)
+        run: |
+          npm config set registry https://registry.npmjs.org/
+          npm config set fetch-retries 4
+          npm config set fetch-retry-maxtimeout 600000
+          npm config set fetch-retry-mintimeout 20000
+
+      # ✅ Option A: use npm install (no lockfile required)
       - name: Install dependencies
         run: npm install --omit=dev --no-audit --no-fund
 
@@ -27,6 +36,6 @@ jobs:
           FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          FIREBASE_UID: ${{ secrets.FIREBASE_UID }}
-          NOTION_TITLE_PROP: "Content"
+          FIREBASE_UID: ${{ secrets.FIREBASE_UID }}          # e.g. kODXzcny7GMStTbGe8ZK367FdKG3
+          NOTION_TITLE_PROP: "Content"                       # matches your Notion DB title column
         run: node scripts/sync-firestore-to-notion.mjs
