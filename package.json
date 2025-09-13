@@ -1,0 +1,10 @@
+{
+  "name": "skribl-sync",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@notionhq/client": "^2.3.0",
+    "firebase-admin": "^12.7.0",
+    "dotenv": "^16.3.1"
+  }
+}
