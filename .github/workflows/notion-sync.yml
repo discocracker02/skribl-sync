@@ -1,9 +1,9 @@
 name: Firestore → Notion Sync
 
 on:
-  workflow_dispatch:        # allow manual runs
+  workflow_dispatch:        # manual runs
   schedule:
-    - cron: "15 21 * * *"   # once daily at 21:15 UTC (~02:45 IST next day). Adjust if you like.
+    - cron: "15 21 * * *"   # daily @ 21:15 UTC (~02:45 IST). Change if you want.
 
 jobs:
   sync:
@@ -13,12 +13,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node (no cache)
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      # Keep this for reliability on public runners; harmless on public repos.
+      - name: Show repo layout
+        run: |
+          echo "PWD=$PWD"
+          ls -la
+          echo "---- scripts ----"
+          ls -la scripts || true
+          echo "---- package.json ----"
+          head -n 200 package.json || true
+
       - name: Configure npm (stability)
         run: |
           npm config set registry https://registry.npmjs.org/
@@ -26,15 +34,51 @@ jobs:
           npm config set fetch-retry-maxtimeout 600000
           npm config set fetch-retry-mintimeout 20000
 
-      # ✅ Option A: use npm install (no lockfile required)
+      # Use npm install (not ci) so we don't need a lockfile
       - name: Install dependencies
         run: npm install --omit=dev --no-audit --no-fund
+
+      # Preflight: verify secrets exist, JSON parses, and modules load
+      - name: Preflight checks
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          FIREBASE_UID: ${{ secrets.FIREBASE_UID }}
+          NOTION_TITLE_PROP: "Content"
+        run: |
+          node -e "
+            const required = ['FIREBASE_SA_JSON','NOTION_TOKEN','NOTION_DATABASE_ID','FIREBASE_UID'];
+            let ok = true;
+            for (const k of required) {
+              if (!process.env[k] || !String(process.env[k]).trim()) { 
+                console.error('❌ Missing secret:', k); ok = false; 
+              } else {
+                console.log('✅ Found secret:', k);
+              }
+            }
+            try {
+              JSON.parse(process.env.FIREBASE_SA_JSON);
+              console.log('✅ FIREBASE_SA_JSON parses');
+            } catch(e) {
+              console.error('❌ FIREBASE_SA_JSON parse error:', e.message); ok = false;
+            }
+            if (!ok) process.exit(1);
+          "
+          node -e "
+            console.log('Node', process.version);
+            const { version: npmv } = require('./node_modules/npm/package.json'); 
+            console.log('npm', npmv);
+            require('@notionhq/client');
+            require('firebase-admin');
+            console.log('✅ Modules load fine');
+          "
 
       - name: Run sync
         env:
           FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          FIREBASE_UID: ${{ secrets.FIREBASE_UID }}          # e.g. kODXzcny7GMStTbGe8ZK367FdKG3
-          NOTION_TITLE_PROP: "Content"                       # matches your Notion DB title column
+          FIREBASE_UID: ${{ secrets.FIREBASE_UID }}
+          NOTION_TITLE_PROP: "Content"
         run: node scripts/sync-firestore-to-notion.mjs
